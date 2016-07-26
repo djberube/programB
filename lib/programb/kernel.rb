@@ -58,7 +58,7 @@ module Programb
                     end
 
       # Load bot predicates and set defaults
-      @predicates = {}
+      @base_predicates = {}
       set_predicate :topic, "Loading Kernel" 
       set_predicate :name, "User"
       set_predicate :that, "Loading Kernel"
@@ -211,7 +211,7 @@ module Programb
         subbed_that = subber(that, :contractions)
 
         # Set 'topic'
-        topic = @predicates[:topic]
+        topic = get_predicate(:topic, session_id)
         subbed_topic = subber(topic, :contractions)
 
         response = ""
@@ -291,10 +291,16 @@ module Programb
     #   value [String] value to set.
     #
     # @return [Void]
-    def set_predicate(name, value)
+    def set_predicate(name, value, session_id=nil)
       name = name.to_sym
       log.debug("Setting '#{name}' to '#{value}'.") if $VERBOSE
-      @predicates[name] = value
+      
+      if session.nil?
+        @base_predicates[name] = value
+      else
+
+        @session[session_id][:predicates][name] = value
+      end
     end
 
 
@@ -305,14 +311,18 @@ module Programb
     #   name [Symbol] name of the predicate
     #
     # @return [String]
-    def get_predicate(name)
+    def get_predicate(name, session_id=nil)
       name = name.to_sym
 
       begin 
-        @predicates[name]
-      rescue
-        ""
-      end
+        if session_id.nil?
+          @base_predicates[name]
+        else
+          (@base_predicates.merge(@session[session_id][:predicates]) )[name]
+        end
+       rescue
+         ""
+       end
     end
 
 
@@ -357,7 +367,8 @@ module Programb
       @session[session_id] = {
         :input_history => [],
         :output_history => [],
-        :input_stack => []
+        :input_stack => [],
+        :predicates => {}
       }
     end
 
@@ -517,7 +528,7 @@ module Programb
       name  = element.attr('name')
       value = element.text
       
-      set_predicate name, value
+      set_predicate name, value, session_id
       value
     end
 
@@ -527,7 +538,7 @@ module Programb
       name = element.attr('name')
       
       begin
-        get_predicate name
+        get_predicate name, session_id
       rescue
         log.error("Predicate #{name} does not exist!")
         name
@@ -564,7 +575,7 @@ module Programb
         
         condition = element.inner_html
         
-        bot_predicate = get_predicate(name)
+        bot_predicate = get_predicate(name, session_id)
 
         if bot_predicate == value
           return condition
@@ -580,7 +591,7 @@ module Programb
           if li.attr('value')
             value = li.attr('value')
             list_item = li.inner_html
-            bot_predicate = get_predicate name
+            bot_predicate = get_predicate(name, session_id)
 
             if bot_predicate == value
               return list_item
@@ -713,7 +724,7 @@ module Programb
       that = subber that, :contractions
 
       # Fetch 'topic'
-      topic = @predicates[:topic]
+      topic = get_predicate(:topic, session_id)
       topic = subber topic, :contractions
       
       # Is it <star>?
@@ -745,7 +756,7 @@ module Programb
       that = subber that, :contractions
 
       # Fetch 'topic'
-      topic = @predicates[:topic]
+      topic = get_predicate(:topic, session_id)
       topic = subber topic, :contractions
       
       if element.attr('index')
